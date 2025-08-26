@@ -21,12 +21,18 @@ data class ClientFormState(
 class ClientViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = ClientRepository(AppDatabase.get(app).clientDao())
 
+    // 🔹 Query para pantallas con buscador (lista de clientes)
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
 
+    // 🔹 Lista filtrada para pantallas con búsqueda (ClientListScreen)
     val clients = query
         .debounce(250)
         .flatMapLatest { q -> if (q.isBlank()) repo.observeAll() else repo.search(q) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 🔹 Lista “siempre” (sin búsqueda) para selectores (ClientSelector en SaleForm)
+    val clientsAll = repo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _form = MutableStateFlow(ClientFormState())
@@ -86,10 +92,20 @@ class ClientViewModel(app: Application) : AndroidViewModel(app) {
         val f = _form.value
         val id = editingId
         if (id == null) {
-            val newId = repo.create(f.fullName, f.document, f.phone.ifBlank { null }, f.email.ifBlank { null }, f.address.ifBlank { null })
+            val newId = repo.create(
+                f.fullName, f.document,
+                f.phone.ifBlank { null },
+                f.email.ifBlank { null },
+                f.address.ifBlank { null }
+            )
             onDone(newId)
         } else {
-            repo.update(id, f.fullName, f.document, f.phone.ifBlank { null }, f.email.ifBlank { null }, f.address.ifBlank { null })
+            repo.update(
+                id, f.fullName, f.document,
+                f.phone.ifBlank { null },
+                f.email.ifBlank { null },
+                f.address.ifBlank { null }
+            )
             onDone(id)
         }
     }

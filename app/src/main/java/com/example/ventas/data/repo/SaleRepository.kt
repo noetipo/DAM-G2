@@ -7,8 +7,8 @@ import com.example.ventas.data.local.dao.ProductDao
 import com.example.ventas.data.local.dao.SaleDao
 import com.example.ventas.data.local.entity.Sale
 import com.example.ventas.data.local.entity.SaleDetail
+import com.example.ventas.data.local.entity.SaleWithClientAndDetails
 import kotlinx.coroutines.flow.Flow
-import com.example.ventas.data.local.entity.SaleWithDetails
 
 class SaleRepository(
     private val db: AppDatabase,
@@ -16,31 +16,40 @@ class SaleRepository(
     private val productDao: ProductDao
 ) {
 
-    fun observeSales(): Flow<List<SaleWithDetails>> = saleDao.observeSales()
+    /** Observa ventas con cliente y detalles (para listas en UI). */
+    fun observeSales(): Flow<List<SaleWithClientAndDetails>> =
+        saleDao.observeSalesWithClient()
 
     /**
-     * Crea la venta calculando subtotal/IGV/total y descontando stock.
+     * Crea la venta calculando subtotal/IGV/total, genera F001-######,
+     * inserta detalles y descuenta stock de forma atómica.
      * Lanza IllegalArgumentException si stock insuficiente o datos inválidos.
      */
     suspend fun createSale(req: CreateSaleRequest): Long {
         require(req.items.isNotEmpty()) { "Debe incluir al menos un ítem" }
         require(req.items.all { it.qty > 0 && it.unitPrice >= 0 }) { "Cantidades y precios inválidos" }
 
-        // Cálculo de montos
         val subtotal = req.items.fold(0L) { acc, it -> acc + it.unitPrice * it.qty }
-        val tax = Math.round(subtotal * req.taxRate).toLong()
+        val tax = kotlin.math.round(subtotal * req.taxRate).toLong()
         val total = subtotal + tax
-
         val now = System.currentTimeMillis()
 
         return db.withTransaction {
-            // 1) Insertar venta
+            // Serie fija:
+            val series = "F001"
+
+            // Último correlativo de la serie:
+            val lastNumberStr = saleDao.getLastNumber(series)
+            val nextNumberInt = (lastNumberStr?.toIntOrNull() ?: 0) + 1
+            val nextNumberStr = nextNumberInt.toString().padStart(6, '0') // 000001
+
+            // 1) Insertar cabecera
             val saleId = saleDao.insertSale(
                 Sale(
                     clientId = req.clientId,
                     paymentMethod = req.paymentMethod,
-                    series = req.series,
-                    number = req.number,
+                    series = series,
+                    number = nextNumberStr,
                     subtotal = subtotal,
                     tax = tax,
                     total = total,
@@ -63,11 +72,11 @@ class SaleRepository(
             }
             saleDao.insertDetails(details)
 
-            // 3) Descontar stock de cada producto (seguro)
+            // 3) Descontar stock (seguro)
             for (i in req.items) {
                 val affected = productDao.safeDecrementStock(i.productId, i.qty, now)
                 if (affected == 0) {
-                    // Revertirá toda la transacción
+                    // Revierte toda la transacción
                     throw IllegalArgumentException("Stock insuficiente para producto ${i.productId}")
                 }
             }
@@ -76,5 +85,7 @@ class SaleRepository(
         }
     }
 
-    suspend fun getSale(id: Long): SaleWithDetails? = saleDao.getSaleWithDetails(id)
+    /** Trae una venta con cliente y detalles. */
+    suspend fun getSale(id: Long): SaleWithClientAndDetails? =
+        saleDao.getSaleWithClientAndDetails(id)
 }

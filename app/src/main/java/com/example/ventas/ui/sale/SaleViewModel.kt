@@ -6,14 +6,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ventas.data.local.AppDatabase
 import com.example.ventas.data.repo.*
-import com.example.ventas.data.local.entity.SaleWithDetails
+import com.example.ventas.data.local.entity.SaleWithClientAndDetails
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class SaleItemForm(
     val productId: Long? = null,
     val qty: String = "1",
-    val unitPriceText: String = "" // “12.50” => se convertirá a centavos
+    val unitPriceText: String = ""
 )
 
 data class SaleFormState(
@@ -29,8 +29,10 @@ class SaleViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.get(app)
     private val repo = SaleRepository(db, db.saleDao(), db.productDao())
 
-    val sales: StateFlow<List<SaleWithDetails>> =
-        repo.observeSales().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    // ⚠️ Tipo corregido: ahora usamos SaleWithClientAndDetails
+    val sales: StateFlow<List<SaleWithClientAndDetails>> =
+        repo.observeSales()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _form = MutableStateFlow(SaleFormState())
     val form: StateFlow<SaleFormState> = _form
