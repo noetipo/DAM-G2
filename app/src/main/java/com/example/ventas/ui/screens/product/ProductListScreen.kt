@@ -30,11 +30,11 @@ fun ProductListScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Productos") },
-                navigationIcon = {                     // 👇 botón hamburguesa
+                /*navigationIcon = {                     // 👇 botón hamburguesa
                     IconButton(onClick = onOpenDrawer) {
                         Icon(Icons.Filled.Menu, contentDescription = "Abrir menú")
                     }
-                }
+                }*/
             )
         },
         floatingActionButton = {

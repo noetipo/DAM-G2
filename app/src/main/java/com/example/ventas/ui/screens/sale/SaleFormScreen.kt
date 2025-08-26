@@ -2,10 +2,13 @@
 package com.example.ventas.ui.screens.sale
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.ventas.ui.sale.rememberSaleVM
@@ -24,49 +27,71 @@ fun SaleFormScreen(
     val vm = rememberSaleVM()
     val form by vm.form.collectAsState()
 
-    // Productos para selector
+    // Productos para selector (usa initial vacío por seguridad)
     val productVM = rememberProductVM()
-    val products by productVM.products.collectAsState()
+    val products by productVM.products.collectAsState(initial = emptyList())
 
-    // Clientes para selector
+    // Clientes para selector (expone un flow/list en tu VM)
     val clientVM = rememberClientVM()
-    val clients by clientVM.clients.collectAsState(initial = emptyList()) // expón un flow/list en tu VM
+    val clients by clientVM.clients.collectAsState(initial = emptyList())
 
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
+    val focusManager = LocalFocusManager.current
 
     Scaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text("Nueva Venta") }) }
     ) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp)) {
 
-            // ==== CLIENTE (select) ====
-            ClientSelector(
-                selectedClientId = form.clientId,
-                clients = clients,
-                onSelected = { id -> vm.setClient(id) },
-                label = "Cliente"
-            )
-            Spacer(Modifier.height(12.dp))
+        LazyColumn(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .imePadding() // evita que el teclado tape campos/botones
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
+        ) {
+            // ===== CABECERA: Cliente + Serie/Número =====
+            item {
+                ClientSelector(
+                    selectedClientId = form.clientId,
+                    clients = clients,
+                    onSelected = { id -> vm.setClient(id) },
+                    label = "Cliente"
+                )
+                if (form.errors.containsKey("clientId")) {
+                    Text(
+                        text = form.errors["clientId"].orEmpty(),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
 
-            // Serie / Número (si decides mantenerlos manuales)
-            OutlinedTextField(
-                value = form.series,
-                onValueChange = { vm.setSeries(it) },
-                label = { Text("Serie (opcional)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = form.number,
-                onValueChange = { vm.setNumber(it) },
-                label = { Text("Número (opcional)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(12.dp))
+            /*item {
+                OutlinedTextField(
+                    value = form.series,
+                    onValueChange = { vm.setSeries(it) },
+                    label = { Text("Serie (opcional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
 
-            // ===== ÍTEMS =====
-            form.items.forEachIndexed { idx, it ->
+            item {
+                OutlinedTextField(
+                    value = form.number,
+                    onValueChange = { vm.setNumber(it) },
+                    label = { Text("Número (opcional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }*/
+
+            // ===== ÍTEMS DINÁMICOS =====
+            itemsIndexed(form.items) { idx, it ->
                 ElevatedCard(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -88,7 +113,7 @@ fun SaleFormScreen(
                         )
                         if (form.errors.containsKey("item.$idx.productId")) {
                             Text(
-                                text = form.errors["item.$idx.productId"] ?: "",
+                                text = form.errors["item.$idx.productId"].orEmpty(),
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -101,11 +126,17 @@ fun SaleFormScreen(
                             value = it.qty,
                             onValueChange = { s -> vm.updateItem(idx, qty = s) },
                             label = { Text("Cantidad") },
+                            modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             isError = form.errors.containsKey("item.$idx.qty"),
-                            supportingText = { Text(form.errors["item.$idx.qty"] ?: "") },
-                            modifier = Modifier.fillMaxWidth()
+                            supportingText = {
+                                if (form.errors.containsKey("item.$idx.qty")) {
+                                    Text(form.errors["item.$idx.qty"].orEmpty())
+                                }
+                            },
+                            singleLine = true
                         )
+
                         Spacer(Modifier.height(8.dp))
 
                         // Precio Unitario
@@ -113,44 +144,78 @@ fun SaleFormScreen(
                             value = it.unitPriceText,
                             onValueChange = { s -> vm.updateItem(idx, unitPriceText = s) },
                             label = { Text("Precio Unitario (S/)") },
+                            modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             isError = form.errors.containsKey("item.$idx.price"),
-                            supportingText = { Text(form.errors["item.$idx.price"] ?: "") },
-                            modifier = Modifier.fillMaxWidth()
+                            supportingText = {
+                                if (form.errors.containsKey("item.$idx.price")) {
+                                    Text(form.errors["item.$idx.price"].orEmpty())
+                                }
+                            },
+                            singleLine = true
                         )
 
                         Spacer(Modifier.height(8.dp))
+
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             if (form.items.size > 1) {
-                                OutlinedButton(onClick = { vm.removeItem(idx) }) { Text("Quitar ítem") }
+                                OutlinedButton(onClick = {
+                                    focusManager.clearFocus()
+                                    vm.removeItem(idx)
+                                }) {
+                                    Text("Quitar ítem")
+                                }
                             }
-                            OutlinedButton(onClick = { vm.addItem() }) { Text("Añadir ítem") }
+                            OutlinedButton(onClick = {
+                                focusManager.clearFocus()
+                                vm.addItem()
+                            }) {
+                                Text("Añadir ítem")
+                            }
                         }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
             }
 
-            error?.let {
+            // ===== MENSAJE DE ERROR GLOBAL (si existe) =====
+            if (error != null) {
+                item {
+                    Text(
+                        text = error.orEmpty(),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+            // ===== ACCIONES =====
+            item {
                 Spacer(Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            focusManager.clearFocus()
+                            onCancel()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Cancelar") }
 
-            Spacer(Modifier.height(16.dp))
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Cancelar") }
-                Button(
-                    onClick = {
-                        scope.launch {
-                            vm.save(
-                                onDone = onSaved,
-                                onError = { msg -> error = msg }
-                            )
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Guardar") }
+                    Button(
+                        onClick = {
+                            focusManager.clearFocus()
+                            scope.launch {
+                                vm.save(
+                                    onDone = onSaved,
+                                    onError = { msg -> error = msg }
+                                )
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Guardar") }
+                }
             }
         }
     }

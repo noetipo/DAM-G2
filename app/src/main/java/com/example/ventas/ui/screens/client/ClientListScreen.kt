@@ -31,11 +31,11 @@ fun ClientListScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Clientes") },
-                navigationIcon = {
+                /*navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
                         Icon(Icons.Filled.Menu, contentDescription = "Abrir menú")
                     }
-                }
+                }*/
             )
         },
         floatingActionButton = {

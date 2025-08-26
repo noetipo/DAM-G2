@@ -25,11 +25,6 @@ fun HomeScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Ventas") },
-                navigationIcon = {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = "menu")
-                    }
-                }
             )
         }
     ) { padding ->

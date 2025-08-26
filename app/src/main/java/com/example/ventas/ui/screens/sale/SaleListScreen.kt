@@ -27,11 +27,11 @@ fun SaleListScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Ventas") },
-                navigationIcon = {
+                /*navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
                         Icon(Icons.Filled.Menu, contentDescription = "Abrir menú")
                     }
-                }
+                }*/
             )
         },
         floatingActionButton = {
